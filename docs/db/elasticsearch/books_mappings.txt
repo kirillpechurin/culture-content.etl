@@ -1,0 +1,60 @@
+{
+    "dynamic": "strict",
+    "properties": {
+        "title": {
+            "type": "text",
+            "analyzer": "ru_en",
+            "fields": {
+                "keyword": {
+                    "type": "keyword"
+                }
+            }
+        },
+        "description": {
+            "type": "text",
+            "analyzer": "ru_en"
+        },
+        "publisher": {
+            "type": "text",
+        },
+        "publication_date": {
+            "type": "date",
+        },
+        "isbn": {
+            "type": "text",
+        },
+        "number_of_pages": {
+            "type": "number",
+        },
+        "first_row": {
+            "type": "text",
+            "analyzer": "ru_en"
+        },
+        "authors": {
+            "type": "nested",
+            "dynamic": "strict",
+            "properties": {
+                "id": {
+                    "type": "keyword"
+                },
+                "name": {
+                    "type": "text",
+                    "analyzer": "ru_en"
+                }
+            }
+        },
+        "genres": {
+            "type": "nested",
+            "dynamic": "strict",
+            "properties": {
+                "id": {
+                    "type": "keyword"
+                },
+                "title": {
+                    "type": "text",
+                    "analyzer": "ru_en"
+                }
+            }
+        },
+    }
+}
