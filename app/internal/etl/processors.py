@@ -19,6 +19,8 @@ class BooksETLProcessor:
                 task_es_transformer,
                 task_subscription_transformer,
             ]),
-            state=ETLState(key=settings.BOOKS_ETL_DB_STATE_KEY)
+            state=ETLState(key=settings.BOOKS_ETL_DB_STATE_KEY),
+            batch_size=settings.BOOKS_ETL_READER_BATCH_SIZE,
+            sleep_timeout=settings.BOOKS_ETL_READER_TIMEOUT_BY_EMPTY
         )
         executor.run()

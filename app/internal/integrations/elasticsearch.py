@@ -9,7 +9,7 @@ class ElasticsearchAPI:
     def __init__(self,
                  scheme: str,
                  host: str,
-                 port: str):
+                 port: int):
         self._url = f"{scheme}://{host}:{port}"
 
     def check_index_exists(self,
@@ -35,9 +35,10 @@ class ElasticsearchAPI:
                 "mappings": index_mappings
             }
         )
-        if response.status_code == 201:
+        if response.status_code in (200, 201):
             return True
 
+        response.raise_for_status()
         return False
 
     def bulk(self,
@@ -47,7 +48,7 @@ class ElasticsearchAPI:
         items = copy.deepcopy(items)
         for item in items:
             data_string += json.dumps({"index": {"_index": index_name, "_id": item.pop("_id")}}) + "\n"
-            data_string += json.dumps(item, default=str) + "\n"
+            data_string += json.dumps(item) + "\n"
         response = requests.post(
             f"{self._url}/_bulk",
             data=data_string,

@@ -1,6 +1,7 @@
+import math
 import time
+from typing import Generator
 
-from conf import settings
 from internal.utils import str_to_datetime, datetime_to_str
 from .loaders import ETLLoaderInterface
 from .readers import ETLReaderInterface
@@ -12,32 +13,47 @@ class ETLReaderExecutor:
 
     def __init__(self,
                  reader: ETLReaderInterface,
-                 pipeline: callable,
-                 state: ETLState):
+                 pipeline: Generator,
+                 state: ETLState,
+                 batch_size: int,
+                 sleep_timeout: int):
         self._reader = reader
         self._pipeline = pipeline
         self._state = state
+        self._batch_size = batch_size
+        self._sleep_timeout = sleep_timeout
+
+    def _check_updates(self, state: dict) -> int:
+        count = self._reader.get_count(
+            start=str_to_datetime(state["mark"])
+        )
+        return count
+
+    def _execute_updates(self, state: dict, count: int) -> None:
+        for batch_number in range(0, math.ceil(count / self._batch_size)):
+            batch, last_created_at = self._reader.get(
+                str_to_datetime(state["mark"]),
+                limit=self._batch_size
+            )
+
+            self._pipeline.send(batch)
+
+            state["mark"] = datetime_to_str(last_created_at)
+            self._state.payload = state
+
+    def _get_run(self):
+        # For mocks in tests.
+        return True
 
     def run(self):
         try:
-            while True:
+            while self._get_run():
                 state = self._state.payload
-                books_count = self._reader.get_count(
-                    start=str_to_datetime(state["mark"])
-                )
-                if books_count == 0:
-                    time.sleep(settings.BOOKS_ETL_READER_TIMEOUT_BY_EMPTY)
-                    continue
+                count = self._check_updates(state)
+                if count == 0:
+                    time.sleep(self._sleep_timeout)
 
-                batch_size = settings.BOOKS_ETL_READER_BATCH_SIZE
-
-                for batch_number in range(0, books_count // batch_size + 1):
-                    books_batch = self._reader.get(str_to_datetime(state["mark"]), limit=batch_size * (batch_number + 1))
-
-                    self._pipeline.send(books_batch)
-
-                    state["mark"] = datetime_to_str(books_batch["books"][-1]["created_at"])
-                    self._state.payload = state
+                self._execute_updates(state, count)
         except Exception as ex:
             raise ex
         finally:
@@ -48,7 +64,7 @@ class ETLTransformerExecutor:
 
     def __init__(self,
                  transformer: ETLTransformerInterface,
-                 pipeline: callable):
+                 pipeline: Generator):
         self._transformer = transformer
         self._pipeline = pipeline
 

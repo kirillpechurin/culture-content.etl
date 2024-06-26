@@ -25,12 +25,17 @@ class BooksElasticsearchLoader(ETLLoader):
     _index_settings = conf.external.BOOKS_ELASTICSEARCH_INDEX_SETTINGS
     _index_mappings = conf.external.BOOKS_ELASTICSEARCH_INDEX_MAPPINGS
 
-    def run(self):
-        elasticsearch = ElasticsearchAPI(
+    _api_class = ElasticsearchAPI
+
+    def _get_api(self):
+        return self._api_class(
             settings.EXTERNAL_ELASTICSEARCH_SCHEME,
             settings.EXTERNAL_ELASTICSEARCH_HOST,
             settings.EXTERNAL_ELASTICSEARCH_PORT,
         )
+
+    def run(self):
+        elasticsearch = self._get_api()
         if not elasticsearch.check_index_exists(self._index_name):
             elasticsearch.create_index(
                 self._index_name,
@@ -43,19 +48,24 @@ class BooksElasticsearchLoader(ETLLoader):
 
 class BooksSubscriptionLoader(ETLLoader):
 
-    def run(self):
-        amqp = AMQPAPI(
+    _api_class = AMQPAPI
+
+    def _get_api(self):
+        return self._api_class(
             settings.EXTERNAL_AMQP_HOST,
             settings.EXTERNAL_AMQP_PORT,
             settings.EXTERNAL_AMQP_USER,
             settings.EXTERNAL_AMQP_PASSWORD,
         )
+
+    def run(self):
+        amqp = self._get_api()
         try:
             for key in self._data:
                 amqp.publish(
                     exchange="subscription",
                     queue=key,
-                    body=json.dumps(self._data[key], default=str)
+                    body=json.dumps(self._data[key])
                 )
         except Exception as ex:
             raise ex

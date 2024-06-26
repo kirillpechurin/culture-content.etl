@@ -1,5 +1,5 @@
 import datetime
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Tuple, Any
 
 from conf import settings
 from internal.integrations import PGSQLAPI
@@ -10,27 +10,39 @@ class ETLReaderInterface:
     def get_count(self, start):
         raise NotImplementedError
 
-    def get(self, start, limit: int) -> List[Dict]:
+    def get(self, start, limit: int) -> Tuple[List[Dict], Any]:
         raise NotImplementedError
 
     def close(self):
         pass
 
 
-class ETLDBReader(ETLReaderInterface):
+class ETLReader(ETLReaderInterface):
+
+    def __init__(self):
+        self._api = self._get_api()
+
+    def _get_api(self):
+        raise NotImplementedError
+
+
+class ETLDBReader(ETLReader):
     pass
 
 
 class BooksDBReader(ETLDBReader):
 
-    def __init__(self):
-        self._api = PGSQLAPI(
+    def _get_api(self):
+        return PGSQLAPI(
             host=settings.EXTERNAL_PG_HOST,
             port=settings.EXTERNAL_PG_PORT,
             db_name=settings.EXTERNAL_PG_DB_NAME,
             username=settings.EXTERNAL_PG_USER,
             password=settings.EXTERNAL_PG_PASSWORD,
         )
+
+    def __init__(self):
+        super().__init__()
         self._cursor = self._api.get_cursor()
 
     def get_count(self, start: Optional[datetime.date]):
@@ -84,9 +96,12 @@ class BooksDBReader(ETLDBReader):
         ORDER BY
             a.id
         """
-        self._cursor.execute(sql, (tuple(book_ids),))
-        authors = self._cursor.fetchall()
-        authors = [dict(item) for item in authors]
+        if len(book_ids):
+            self._cursor.execute(sql, (tuple(book_ids),))
+            authors = self._cursor.fetchall()
+            authors = [dict(item) for item in authors]
+        else:
+            authors = []
 
         sql = """
         SELECT
@@ -101,15 +116,19 @@ class BooksDBReader(ETLDBReader):
         ORDER BY
             g.id
         """
-        self._cursor.execute(sql, (tuple(book_ids),))
-        genres = self._cursor.fetchall()
-        genres = [dict(item) for item in genres]
+        if len(book_ids):
+            self._cursor.execute(sql, (tuple(book_ids),))
+            genres = self._cursor.fetchall()
+            genres = [dict(item) for item in genres]
+        else:
+            genres = []
 
+        last_created_at = books[-1]["created_at"] if books else None
         return {
             "books": books,
             "authors": authors,
             "genres": genres
-        }
+        }, last_created_at
 
     def close(self):
         self._api.close()
